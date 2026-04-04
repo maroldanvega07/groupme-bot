@@ -99,7 +99,9 @@ app.post('/webhook', (req, res) => {
   if (command === 'help') {
     (async () => {
       try {
-        await postToGroupMe('Available commands: /coverage, /objection');
+        await postToGroupMe(`Available commands:
+• /coverage - Ask questions about insurance coverage
+• /objection - Get help with objection handling`);
       } catch (err) {
         console.error('Error sending help:', err.message);
       }
