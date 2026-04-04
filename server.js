@@ -13,7 +13,7 @@ const {
   PORT = 3001,
 } = process.env;
 
-const TRIGGER_PREFIX = '!ask';
+const TRIGGER_PREFIX = '@aria';
 const MAX_HISTORY_TURNS = 10; // each turn = 1 user + 1 assistant message
 
 // Per-group conversation history: { [group_id]: [{role, content}, ...] }
@@ -80,27 +80,62 @@ app.post('/webhook', (req, res) => {
   // Ignore bot messages to prevent loops
   if (sender_type === 'bot') return;
 
-  // Only handle messages with the trigger prefix
-  if (!text || !text.startsWith(TRIGGER_PREFIX)) return;
+  let command = null;
+  let userMessage = null;
 
-  const userMessage = text.slice(TRIGGER_PREFIX.length).trim();
-  if (!userMessage) return;
+  if (text.startsWith('@aria ')) {
+    const parts = text.slice(6).split(' ');
+    command = parts[0].toLowerCase();
+    userMessage = parts.slice(1).join(' ').trim();
+  } else if (text.startsWith('/')) {
+    const parts = text.slice(1).split(' ');
+    command = parts[0].toLowerCase();
+    userMessage = parts.slice(1).join(' ').trim();
+  } else {
+    return; // not a recognized command
+  }
 
-  // Process asynchronously after responding to GroupMe
-  (async () => {
-    try {
-      const reply = await queryOpenWebUI(group_id, userMessage);
-      appendHistory(group_id, userMessage, reply);
-      await postToGroupMe(reply);
-    } catch (err) {
-      console.error('Error processing message:', err?.response?.data ?? err.message);
+  // Handle commands
+  if (command === 'help') {
+    (async () => {
       try {
-        await postToGroupMe('Sorry, I ran into an error processing your request.');
-      } catch (postErr) {
-        console.error('Failed to send error reply to GroupMe:', postErr.message);
+        await postToGroupMe('Available commands: /coverage, /objection');
+      } catch (err) {
+        console.error('Error sending help:', err.message);
       }
+    })();
+    return;
+  }
+
+  if (command === 'coverage' || command === 'objection') {
+    if (!userMessage) {
+      (async () => {
+        try {
+          await postToGroupMe('Please provide a question after the command.');
+        } catch (err) {
+          console.error('Error sending prompt:', err.message);
+        }
+      })();
+      return;
     }
-  })();
+
+    // Process asynchronously
+    (async () => {
+      try {
+        const prefixedMessage = `${command}: ${userMessage}`;
+        const reply = await queryOpenWebUI(group_id, prefixedMessage);
+        appendHistory(group_id, userMessage, reply);
+        await postToGroupMe(reply);
+      } catch (err) {
+        console.error('Error processing message:', err?.response?.data ?? err.message);
+        try {
+          await postToGroupMe('Sorry, I ran into an error processing your request.');
+        } catch (postErr) {
+          console.error('Failed to send error reply to GroupMe:', postErr.message);
+        }
+      }
+    })();
+  }
 });
 
 app.listen(PORT, () => {
