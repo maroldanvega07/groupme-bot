@@ -83,10 +83,21 @@ app.post('/webhook', (req, res) => {
   let command = null;
   let userMessage = null;
 
-  if (text.startsWith('@aria ')) {
-    const parts = text.slice(6).split(' ');
-    command = parts[0].toLowerCase();
-    userMessage = parts.slice(1).join(' ').trim();
+  if (text.startsWith('@aria')) {
+    const rest = text.slice(5).trim();
+    if (!rest) {
+      command = 'help';
+    } else {
+      const parts = rest.split(' ');
+      const firstWord = parts[0].toLowerCase();
+      if (['help', 'coverage', 'objection'].includes(firstWord)) {
+        command = firstWord;
+        userMessage = parts.slice(1).join(' ').trim();
+      } else {
+        command = 'coverage';
+        userMessage = rest;
+      }
+    }
   } else if (text.startsWith('/')) {
     const parts = text.slice(1).split(' ');
     command = parts[0].toLowerCase();
@@ -101,7 +112,10 @@ app.post('/webhook', (req, res) => {
       try {
         await postToGroupMe(`Available commands:
 • /coverage - Ask questions about insurance coverage
-• /objection - Get help with objection handling`);
+• /objection - Get help with objection handling
+• @aria <question> - Ask Aria directly with coverage context
+• @aria coverage <question> - Same as /coverage
+• @aria objection <question> - Same as /objection`);
       } catch (err) {
         console.error('Error sending help:', err.message);
       }
